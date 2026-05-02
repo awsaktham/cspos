@@ -11339,8 +11339,8 @@ function SettingsView(props) {
       return {
         event: String(r.event||''),
         target_type: String(r.target_type||'department'),
-        department_id: parseInt(r.department_id,10) || 0,
-        team_id: parseInt(r.team_id,10) || 0,
+        department_id: (r && (r.department_id === '' || r.department_id === null || typeof r.department_id === 'undefined')) ? 0 : (parseInt(r.department_id,10) || 0),
+        team_id: (r && (r.team_id === '' || r.team_id === null || typeof r.team_id === 'undefined')) ? 0 : (parseInt(r.team_id,10) || 0),
         sound: String(r.sound||''),
         sound_url: String(r.sound_url||'')
       };
@@ -11743,12 +11743,12 @@ function SettingsView(props) {
             { value:'custom', label:(lang==='en' ? 'Custom URL' : 'رابط مخصص') },
             { value:'off', label:(lang==='en' ? 'Off' : 'بدون صوت') },
           ];
-          var deptOptions = [{ value:'0', label:(lang==='en' ? 'Select department' : 'اختر القسم') }].concat(
+          var deptOptions = [{ value:'', label:(lang==='en' ? 'Select department' : 'اختر القسم') }, { value:'0', label:(lang==='en' ? 'All departments' : 'كل الأقسام') }].concat(
             notifyDepartments.map(function(dRow){
               return { value:String(dRow.id), label:(lang==='en' ? (dRow.name_en || dRow.name) : (dRow.name || dRow.name_en || ('#'+dRow.id))) };
             })
           );
-          var teamOptions = [{ value:'0', label:(lang==='en' ? 'Select team' : 'اختر الفريق') }].concat(
+          var teamOptions = [{ value:'', label:(lang==='en' ? 'Select team' : 'اختر الفريق') }, { value:'0', label:(lang==='en' ? 'All teams' : 'كل الفرق') }].concat(
             notifyTeams.map(function(tRow){
               return { value:String(tRow.id), label:(lang==='en' ? (tRow.name_en || tRow.name) : (tRow.name || tRow.name_en || ('#'+tRow.id))) };
             })
@@ -11779,8 +11779,8 @@ function SettingsView(props) {
             ),
             h('div', { style:{ marginTop:10, display:'grid', gridTemplateColumns:'1fr 120px', gap:10, alignItems:'end' } },
               (targetType === 'team')
-                ? h(Select, { label:(lang==='en'?'Team':'الفريق'), value:String(r.team_id||0), onChange:function(v){ patch('team_id', String(v||'0')); }, options: teamOptions })
-                : h(Select, { label:(lang==='en'?'Department':'القسم'), value:String(r.department_id||0), onChange:function(v){ patch('department_id', String(v||'0')); }, options: deptOptions }),
+                ? h(Select, { label:(lang==='en'?'Team':'الفريق'), value:(r.team_id === '' ? '' : String(r.team_id||0)), onChange:function(v){ patch('team_id', (typeof v === 'undefined' || v === null) ? '' : String(v)); }, options: teamOptions })
+                : h(Select, { label:(lang==='en'?'Department':'القسم'), value:(r.department_id === '' ? '' : String(r.department_id||0)), onChange:function(v){ patch('department_id', (typeof v === 'undefined' || v === null) ? '' : String(v)); }, options: deptOptions }),
               h(Btn, { variant:'secondary', onClick:remove }, lang==='en' ? 'Remove' : 'حذف')
             ),
             (sound === 'custom') && h('div', { style:{ marginTop:10 } },

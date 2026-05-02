@@ -1129,9 +1129,11 @@ class CSPSR_REST {
             $t = $rule['target_type'] ?? 'department';
             $uids = [];
             if ($t === 'team') {
-                $uids = self::user_ids_by_team_id((int)($rule['team_id'] ?? 0));
+                $team_id = (int)($rule['team_id'] ?? 0);
+                $uids = $team_id > 0 ? self::user_ids_by_team_id($team_id) : self::user_ids_all_active();
             } else {
-                $uids = self::user_ids_by_department_id((int)($rule['department_id'] ?? 0));
+                $dept_id = (int)($rule['department_id'] ?? 0);
+                $uids = $dept_id > 0 ? self::user_ids_by_department_id($dept_id) : self::user_ids_all_active();
             }
             if (empty($uids)) continue;
             $sound = (string)($rule['sound'] ?? '');
@@ -1171,9 +1173,11 @@ class CSPSR_REST {
             $t = $rule['target_type'] ?? 'department';
             $uids = [];
             if ($t === 'team') {
-                $uids = self::user_ids_by_team_id((int)($rule['team_id'] ?? 0));
+                $team_id = (int)($rule['team_id'] ?? 0);
+                $uids = $team_id > 0 ? self::user_ids_by_team_id($team_id) : self::user_ids_all_active();
             } else {
-                $uids = self::user_ids_by_department_id((int)($rule['department_id'] ?? 0));
+                $dept_id = (int)($rule['department_id'] ?? 0);
+                $uids = $dept_id > 0 ? self::user_ids_by_department_id($dept_id) : self::user_ids_all_active();
             }
             if (empty($uids)) continue;
             $sound = (string)($rule['sound'] ?? '');
