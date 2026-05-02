@@ -1185,7 +1185,28 @@ function getT() { return function(k, arg) {
 }; }
 
 /* â”€â”€ API â”€â”€ */
-function cfg() { return window.CSPSR_CONFIG || { root:'/wp-json/cspsr/v1/', nonce:'' }; }
+function normalizeApiRoot(root) {
+  root = String(root || '');
+  if (!root) return '/wp-json/cspsr/v1/';
+  // Some hosts block /index.php?rest_route=... and return 404. Prefer /wp-json/...
+  if (root.indexOf('rest_route=') >= 0) {
+    try {
+      var m = root.match(/rest_route=([^&]+)/);
+      if (m && m[1]) {
+        var route = decodeURIComponent(m[1] || '');
+        route = String(route || '').replace(/^\\/+/, '').replace(/\\/?$/, '/');
+        return '/wp-json/' + route;
+      }
+    } catch (_e0) {}
+    return '/wp-json/cspsr/v1/';
+  }
+  return root;
+}
+function cfg() {
+  var c = window.CSPSR_CONFIG || { root:'/wp-json/cspsr/v1/', nonce:'' };
+  c = Object.assign({}, c, { root: normalizeApiRoot(c.root) });
+  return c;
+}
 var CSPSR_DATA_CHANGED_EVENT = 'cspsr:data-changed';
 var CSPSR_ACTIVE_TAB_KEY = 'cspsr_active_tab';
 function announceDataChanged(detail) {
