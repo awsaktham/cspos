@@ -1010,6 +1010,12 @@ class CSPSR_REST {
             $ok = $wpdb->insert($tbl, $row);
             if ($ok) $count++;
         }
+        // Best-effort push via FCM (does not affect DB insert result).
+        self::maybe_send_push_to_users($user_ids, [
+            'title' => (string)$title,
+            'body'  => (string)$body,
+            'url'   => home_url('/'),
+        ]);
         return $count;
     }
 
@@ -1067,7 +1073,27 @@ class CSPSR_REST {
             $ok = $wpdb->insert($tbl, $row);
             if ($ok) $count++;
         }
+        // Best-effort push via FCM (does not affect DB insert result).
+        self::maybe_send_push_to_users($user_ids, [
+            'title' => (string)$title,
+            'body'  => (string)$body,
+            'url'   => home_url('/'),
+        ]);
         return $count;
+    }
+
+    private static function maybe_send_push_to_users($user_ids, $notif) {
+        $enabled = (bool) get_option('cspsr_fcm_enabled', false);
+        if (!$enabled) return;
+        $user_ids = array_values(array_unique(array_filter(array_map('intval', is_array($user_ids) ? $user_ids : []))));
+        if (empty($user_ids)) return;
+        foreach ($user_ids as $uid) {
+            try {
+                self::fcm_send_to_user((int)$uid, $notif);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
     }
 
     private static function maybe_notify_printing_new_order($order_id, $order_number) {
@@ -1920,6 +1946,10 @@ class CSPSR_REST {
                 'enabled' => (bool) get_option('cspsr_fcm_enabled', false),
                 'vapid_public' => (string) get_option('cspsr_fcm_vapid_public', ''),
                 'config' => self::normalize_fcm_config(get_option('cspsr_fcm_config', '')),
+                'service_account_set' => (
+                    (string) get_option('cspsr_fcm_service_account_json', '') !== ''
+                    || ((string) get_option('cspsr_fcm_service_account_path', '') !== '' && file_exists((string) get_option('cspsr_fcm_service_account_path', '')))
+                ),
             ],
         ];
         $time_meta = [
@@ -4936,6 +4966,10 @@ class CSPSR_REST {
                 'enabled' => (bool) get_option('cspsr_fcm_enabled', false),
                 'vapid_public' => (string) get_option('cspsr_fcm_vapid_public', ''),
                 'config' => self::normalize_fcm_config(get_option('cspsr_fcm_config', '')),
+                'service_account_set' => (
+                    (string) get_option('cspsr_fcm_service_account_json', '') !== ''
+                    || ((string) get_option('cspsr_fcm_service_account_path', '') !== '' && file_exists((string) get_option('cspsr_fcm_service_account_path', '')))
+                ),
             ],
         ]);
     }
@@ -4965,6 +4999,26 @@ class CSPSR_REST {
         if (array_key_exists('fcm_config', $d)) {
             $cfg = self::normalize_fcm_config($d['fcm_config']);
             update_option('cspsr_fcm_config', wp_json_encode($cfg, JSON_UNESCAPED_SLASHES), false);
+        }
+        if (array_key_exists('fcm_service_account_json', $d)) {
+            $sa = $d['fcm_service_account_json'];
+            $sa_str = '';
+            if (is_string($sa)) {
+                $sa_str = trim($sa);
+            } elseif (is_array($sa)) {
+                $sa_str = wp_json_encode($sa, JSON_UNESCAPED_SLASHES);
+            }
+            if ($sa_str === '') {
+                update_option('cspsr_fcm_service_account_json', '', false);
+            } else {
+                $decoded = json_decode($sa_str, true);
+                if (is_array($decoded)) {
+                    update_option('cspsr_fcm_service_account_json', wp_json_encode($decoded, JSON_UNESCAPED_SLASHES), false);
+                }
+            }
+        }
+        if (array_key_exists('fcm_service_account_path', $d)) {
+            update_option('cspsr_fcm_service_account_path', sanitize_text_field((string)$d['fcm_service_account_path']), false);
         }
         if ($calendar_changed) self::reschedule_open_orders();
         return self::ok(['saved' => true]);
@@ -5052,7 +5106,11 @@ class CSPSR_REST {
 
         $sa_path = (string) get_option('cspsr_fcm_service_account_path', '');
         $sa_path = trim($sa_path);
-        if ($sa_path === '' || !file_exists($sa_path)) return ['sent' => 0, 'error' => 'Missing service account file'];
+        $sa_json = (string) get_option('cspsr_fcm_service_account_json', '');
+        $sa_json = trim($sa_json);
+        if (($sa_path === '' || !file_exists($sa_path)) && $sa_json === '') {
+            return ['sent' => 0, 'error' => 'Missing service account'];
+        }
         if (!is_readable($sa_path)) return ['sent' => 0, 'error' => 'Service account not readable'];
 
         $tbl = self::tbl('push_devices');
@@ -5061,7 +5119,16 @@ class CSPSR_REST {
         $tokens = array_values(array_filter(array_map('strval', $tokens)));
         if (empty($tokens)) return ['sent' => 0, 'error' => 'No registered devices for this user'];
 
-        $access_token = self::fcm_get_access_token($sa_path);
+        $access_token = null;
+        if ($sa_path !== '' && file_exists($sa_path)) {
+            $access_token = self::fcm_get_access_token_from_file($sa_path);
+        }
+        if (!$access_token && $sa_json !== '') {
+            $decoded = json_decode($sa_json, true);
+            if (is_array($decoded)) {
+                $access_token = self::fcm_get_access_token_from_json($decoded);
+            }
+        }
         if (!$access_token) return ['sent' => 0, 'error' => 'Failed to get OAuth access token'];
 
         $project_id = $cfg['projectId'] ?? '';
@@ -5112,10 +5179,15 @@ class CSPSR_REST {
         return ['sent' => $count, 'devices' => count($tokens), 'error' => ($count > 0 ? '' : $last_error)];
     }
 
-    private static function fcm_get_access_token($service_account_path) {
+    private static function fcm_get_access_token_from_file($service_account_path) {
         $raw = @file_get_contents($service_account_path);
         if (!$raw) return null;
         $json = json_decode($raw, true);
+        if (!is_array($json)) return null;
+        return self::fcm_get_access_token_from_json($json);
+    }
+
+    private static function fcm_get_access_token_from_json($json) {
         if (!is_array($json)) return null;
         $client_email = $json['client_email'] ?? '';
         $private_key  = $json['private_key'] ?? '';
