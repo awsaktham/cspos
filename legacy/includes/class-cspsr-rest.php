@@ -990,6 +990,18 @@ class CSPSR_REST {
         return array_values(array_filter(array_map('intval', $rows)));
     }
 
+    private static function user_ids_all_active() {
+        global $wpdb;
+        $u_tbl = self::tbl('app_users');
+        if (!$wpdb->get_var("SHOW TABLES LIKE '$u_tbl'")) return [];
+        $where = "1=1";
+        if (self::has_column($u_tbl, 'is_active')) {
+            $where .= " AND (is_active IS NULL OR is_active=1)";
+        }
+        $rows = $wpdb->get_col("SELECT id FROM $u_tbl WHERE $where");
+        return array_values(array_filter(array_map('intval', $rows)));
+    }
+
     private static function create_personal_notifications($user_ids, $title, $body, $type = 'info') {
         global $wpdb;
         $user_ids = array_values(array_filter(array_map('intval', is_array($user_ids) ? $user_ids : [])));
@@ -2620,13 +2632,41 @@ class CSPSR_REST {
             // Default: personal notification (only current user).
             $user_id = $actor_id;
 
-            // Admin can broadcast (user_id NULL) or target a specific user_id.
+            // Admin can target specific scopes.
             $scope = strtolower(trim((string)($d['scope'] ?? 'me')));
-            if ($is_admin && $scope === 'broadcast') {
-                $user_id = null;
-            } elseif ($is_admin && isset($d['user_id'])) {
-                $target = (int) $d['user_id'];
-                $user_id = $target > 0 ? $target : $actor_id;
+            if ($is_admin) {
+                if ($scope === 'broadcast' || $scope === 'all') {
+                    $uids = self::user_ids_all_active();
+                    $title = sanitize_text_field((string)($d['title'] ?? ''));
+                    $body  = sanitize_textarea_field((string)($d['body'] ?? ''));
+                    $type  = sanitize_key((string)($d['type'] ?? 'info')) ?: 'info';
+                    $count = self::create_personal_notifications($uids, $title, $body, $type);
+                    return self::created(['created' => $count]);
+                }
+                if ($scope === 'department') {
+                    $dept_id = (int) ($d['department_id'] ?? 0);
+                    $uids = self::user_ids_by_department_id($dept_id);
+                    $title = sanitize_text_field((string)($d['title'] ?? ''));
+                    $body  = sanitize_textarea_field((string)($d['body'] ?? ''));
+                    $type  = sanitize_key((string)($d['type'] ?? 'info')) ?: 'info';
+                    $count = self::create_personal_notifications($uids, $title, $body, $type);
+                    return self::created(['created' => $count, 'department_id' => $dept_id]);
+                }
+                if ($scope === 'team') {
+                    $team_id = (int) ($d['team_id'] ?? 0);
+                    $uids = self::user_ids_by_team_id($team_id);
+                    $title = sanitize_text_field((string)($d['title'] ?? ''));
+                    $body  = sanitize_textarea_field((string)($d['body'] ?? ''));
+                    $type  = sanitize_key((string)($d['type'] ?? 'info')) ?: 'info';
+                    $count = self::create_personal_notifications($uids, $title, $body, $type);
+                    return self::created(['created' => $count, 'team_id' => $team_id]);
+                }
+                if (isset($d['user_id'])) {
+                    $target = (int) $d['user_id'];
+                    $user_id = $target > 0 ? $target : $actor_id;
+                } elseif ($scope === 'broadcast') {
+                    $user_id = null;
+                }
             }
         }
 

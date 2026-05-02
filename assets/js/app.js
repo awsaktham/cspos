@@ -7859,12 +7859,15 @@ function StepsDirectoryView(props) {
 function NotificationsView(props) {
   var i18n = useI18n(); var t = i18n.t; var lang = i18n.lang;
   var crud = useCRUD('notifications');
-  var _f = useState({title:'',body:'',type:'info',scope:'me'}); var form = _f[0], setForm = _f[1];
+  var _f = useState({title:'',body:'',type:'info',scope:'me',department_id:'',team_id:''}); var form = _f[0], setForm = _f[1];
   var _perm = useState((typeof Notification!=='undefined' ? Notification.permission : 'unsupported')); var notifPerm = _perm[0], setNotifPerm = _perm[1];
   var _tone = useState(getNewOrderTonePref()); var newOrderTone = _tone[0], setNewOrderTone = _tone[1];
   var _custom = useState(getNewOrderCustomToneUrl()); var customUrl = _custom[0], setCustomUrl = _custom[1];
   var authUser = props && props.authUser ? props.authUser : null;
   var isAdmin = !!(authUser && authUser.role === 'admin');
+  var bs = props && props.bootstrap ? props.bootstrap : {};
+  var departments = asArr(bs.departments);
+  var teams = asArr(bs.teams);
   var unread = asArr(crud.items).filter(function(n){return !n.is_read;}).length;
   useTopbar(unread+' '+(lang==='en'?'Unread':'غير مقروء'), null);
   function refreshPerm() {
@@ -7892,8 +7895,12 @@ function NotificationsView(props) {
   function send() {
     if (!form.title) return;
     var payload = { title: form.title, body: form.body, type: form.type };
-    if (isAdmin) payload.scope = form.scope || 'me';
-    crud.create(payload).then(function(){ setForm({title:'',body:'',type:'info',scope:'me'}); });
+    if (isAdmin) {
+      payload.scope = form.scope || 'me';
+      if (payload.scope === 'department') payload.department_id = form.department_id ? parseInt(form.department_id, 10) : 0;
+      if (payload.scope === 'team') payload.team_id = form.team_id ? parseInt(form.team_id, 10) : 0;
+    }
+    crud.create(payload).then(function(){ setForm({title:'',body:'',type:'info',scope:'me',department_id:'',team_id:''}); });
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(form.title, {body:form.body});
   }
   if (crud.loading) return h(PageLoader);
@@ -7951,10 +7958,38 @@ function NotificationsView(props) {
           options: [
             { value:'me', label:(lang==='en' ? 'Only me' : 'فقط أنا') },
             { value:'broadcast', label:(lang==='en' ? 'Everyone' : 'الكل') },
+            { value:'department', label:(lang==='en' ? 'A department' : 'قسم محدد') },
+            { value:'team', label:(lang==='en' ? 'A team' : 'فريق محدد') },
           ]
         }),
         h('div', { style:{ display:'flex', alignItems:'end', color:T.textMute, fontSize:12 } },
           (lang==='en' ? 'Default is personal.' : 'الافتراضي إشعار شخصي.')
+        )
+      ),
+      isAdmin && (form.scope === 'department') && h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 180px', gap:12, marginBottom:10 } },
+        h(Select, {
+          label: (lang==='en' ? 'Department' : 'القسم'),
+          value: form.department_id || '',
+          onChange: function(v){ setForm(function(f){ return Object.assign({}, f, { department_id: v || '' }); }); },
+          options: [{ value:'', label:(lang==='en' ? '— Choose —' : '— اختر —') }].concat(
+            departments.map(function(d){ return { value:String(d.id), label: ln(d, lang) || ('#'+d.id) }; })
+          )
+        }),
+        h('div', { style:{ display:'flex', alignItems:'end', color:T.textMute, fontSize:12 } },
+          (lang==='en' ? 'Sends to all users in this department.' : 'يرسل لكل مستخدمي هذا القسم.')
+        )
+      ),
+      isAdmin && (form.scope === 'team') && h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 180px', gap:12, marginBottom:10 } },
+        h(Select, {
+          label: (lang==='en' ? 'Team' : 'الفريق'),
+          value: form.team_id || '',
+          onChange: function(v){ setForm(function(f){ return Object.assign({}, f, { team_id: v || '' }); }); },
+          options: [{ value:'', label:(lang==='en' ? '— Choose —' : '— اختر —') }].concat(
+            teams.map(function(t0){ return { value:String(t0.id), label: ln(t0, lang) || ('#'+t0.id) }; })
+          )
+        }),
+        h('div', { style:{ display:'flex', alignItems:'end', color:T.textMute, fontSize:12 } },
+          (lang==='en' ? 'Sends to all users in this team.' : 'يرسل لكل مستخدمي هذا الفريق.')
         )
       ),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 } },
