@@ -1038,7 +1038,8 @@ class CSPSR_REST {
         foreach ($arr as $r) {
             if (!is_array($r)) continue;
             $event = sanitize_key($r['event'] ?? '');
-            if (!in_array($event, ['new_order','delivery_ready'], true)) continue;
+            // Allow custom events (back-compat includes new_order/delivery_ready)
+            if ($event === '') continue;
             $target = sanitize_key($r['target_type'] ?? 'department');
             if (!in_array($target, ['department','team'], true)) $target = 'department';
             $dept_id = max(0, (int)($r['department_id'] ?? 0));
@@ -1056,6 +1057,47 @@ class CSPSR_REST {
             ];
         }
         return $out;
+    }
+
+    public static function notify_trigger(WP_REST_Request $r) {
+        $d = $r->get_json_params();
+        $event = sanitize_key((string)($d['event'] ?? ''));
+        if ($event === '') return self::err('Missing event', 400);
+
+        $title = sanitize_text_field((string)($d['title'] ?? 'CSPSR'));
+        $body  = sanitize_textarea_field((string)($d['body'] ?? ''));
+        $url   = esc_url_raw((string)($d['url'] ?? home_url('/')));
+        if ($url === '') $url = home_url('/');
+
+        $rules = self::get_notification_rules();
+        $matched = array_values(array_filter($rules, function($x) use ($event){ return ($x['event'] ?? '') === $event; }));
+        if (empty($matched)) return self::ok(['created' => 0, 'matched' => 0, 'event' => $event]);
+
+        $created = 0;
+        $targets = [];
+        foreach ($matched as $rule) {
+            $t = $rule['target_type'] ?? 'department';
+            $uids = [];
+            if ($t === 'team') {
+                $team_id = (int)($rule['team_id'] ?? 0);
+                $uids = $team_id > 0 ? self::user_ids_by_team_id($team_id) : self::user_ids_all_active();
+            } else {
+                $dept_id = (int)($rule['department_id'] ?? 0);
+                $uids = $dept_id > 0 ? self::user_ids_by_department_id($dept_id) : self::user_ids_all_active();
+            }
+            if (empty($uids)) continue;
+            $sound = (string)($rule['sound'] ?? '');
+            $surl  = (string)($rule['sound_url'] ?? '');
+            $c = self::create_personal_notifications_with_sound($uids, $title, $body, $event, $sound, $surl);
+            $created += (int)$c;
+            $targets[] = [
+                'target_type' => $t,
+                'department_id' => (int)($rule['department_id'] ?? 0),
+                'team_id' => (int)($rule['team_id'] ?? 0),
+                'created' => (int)$c,
+            ];
+        }
+        return self::ok(['created' => $created, 'matched' => count($matched), 'event' => $event, 'targets' => $targets, 'url' => $url]);
     }
 
     private static function get_notification_rules() {
@@ -1501,6 +1543,12 @@ class CSPSR_REST {
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'push_test_self'],
             'permission_callback' => self::perm(),
+        ]);
+        // Trigger a notification by rule event (admin only)
+        register_rest_route($ns, '/notify/trigger', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'notify_trigger'],
+            'permission_callback' => self::admin_perm(),
         ]);
 
         // Export / Import (admin only)

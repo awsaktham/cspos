@@ -11336,8 +11336,10 @@ function SettingsView(props) {
     var clean = reasons.map(function(r){ return {ar:r.ar||'', en:r.en||'', machine:r.machine||'', step:r.step||''}; });
     var interval = Math.max(3, Math.min(120, parseInt(kdsInterval,10)||8));
     var rulesClean = asArr(notifRules).map(function(r){
+      var ev = String(r.event||'');
+      if (ev === 'custom') ev = String(r.custom_event||'');
       return {
-        event: String(r.event||''),
+        event: ev,
         target_type: String(r.target_type||'department'),
         department_id: (r && (r.department_id === '' || r.department_id === null || typeof r.department_id === 'undefined')) ? 0 : (parseInt(r.department_id,10) || 0),
         team_id: (r && (r.team_id === '' || r.team_id === null || typeof r.team_id === 'undefined')) ? 0 : (parseInt(r.team_id,10) || 0),
@@ -11724,13 +11726,16 @@ function SettingsView(props) {
       ),
       h('div', { style:{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 } },
         asArr(notifRules).map(function(r, idx){
-          var event = String(r.event||'new_order');
+          var rawEvent = String(r.event||'new_order');
+          var isKnownEvent = (rawEvent === 'new_order' || rawEvent === 'delivery_ready');
+          var event = isKnownEvent ? rawEvent : 'custom';
           var targetType = String(r.target_type||'department');
           var sound = String(r.sound||'');
           var soundUrl = String(r.sound_url||'');
           var evOpts = [
             { value:'new_order', label:(lang==='en' ? 'New Order' : 'طلب جديد') },
             { value:'delivery_ready', label:(lang==='en' ? 'Delivery Stage' : 'مرحلة التوصيل') },
+            { value:'custom', label:(lang==='en' ? 'Custom…' : 'مخصص…') },
           ];
           var targetOpts = [
             { value:'department', label:(lang==='en' ? 'Department' : 'قسم') },
@@ -11771,17 +11776,49 @@ function SettingsView(props) {
             });
           }
 
+          function toKey(s) {
+            s = String(s||'').toLowerCase().trim();
+            s = s.replace(/[^a-z0-9_\\-]+/g, '_');
+            s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+            return s;
+          }
+          function effectiveEventKey() {
+            if (event === 'custom') return toKey(String(r.custom_event || (!isKnownEvent ? rawEvent : '') || ''));
+            return toKey(rawEvent);
+          }
+
+          function testRule() {
+            var evKey = effectiveEventKey();
+            if (!evKey) return;
+            apiFetch('notify/trigger', { method:'POST', body: JSON.stringify({
+              event: evKey,
+              title: 'CSPSR',
+              body: (lang==='en' ? ('Test: '+evKey) : ('تجربة: '+evKey))
+            }) }).then(function(res){
+              try {
+                var c = res && typeof res.created === 'number' ? res.created : 0;
+                alert(lang==='en' ? ('Triggered. Created: '+c) : ('تم الإرسال. تم إنشاء: '+c));
+              } catch(_e0) {}
+            }).catch(function(e){ alert((e && e.message) ? e.message : 'Error'); });
+          }
+
           return h('div', { key:idx, style:{ padding:12, border:'1px solid '+T.border, borderRadius:T.radiusLg, background:T.bg } },
             h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 } },
               h(Select, { label:(lang==='en'?'Alert type':'نوع الإشعار'), value:event, onChange:function(v){ patch('event', String(v||'new_order')); }, options: evOpts }),
               h(Select, { label:(lang==='en'?'Target':'الجهة'), value:targetType, onChange:function(v){ patch('target_type', String(v||'department')); }, options: targetOpts }),
               h(Select, { label:(lang==='en'?'Sound':'الصوت'), value:sound, onChange:function(v){ patch('sound', String(v||'')); }, options: soundOpts })
             ),
+            (event === 'custom') && h('div', { style:{ marginTop:10 } },
+              h(Input, { label:(lang==='en'?'Custom type key':'مفتاح النوع المخصص'), value:String(r.custom_event || (!isKnownEvent ? rawEvent : '') || ''), onChange:function(v){ patch('custom_event', String(v||'')); } })
+            ),
             h('div', { style:{ marginTop:10, display:'grid', gridTemplateColumns:'1fr 120px', gap:10, alignItems:'end' } },
               (targetType === 'team')
                 ? h(Select, { label:(lang==='en'?'Team':'الفريق'), value:(r.team_id === '' ? '' : String(r.team_id||0)), onChange:function(v){ patch('team_id', (typeof v === 'undefined' || v === null) ? '' : String(v)); }, options: teamOptions })
                 : h(Select, { label:(lang==='en'?'Department':'القسم'), value:(r.department_id === '' ? '' : String(r.department_id||0)), onChange:function(v){ patch('department_id', (typeof v === 'undefined' || v === null) ? '' : String(v)); }, options: deptOptions }),
-              h(Btn, { variant:'secondary', onClick:remove }, lang==='en' ? 'Remove' : 'حذف')
+              h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end' } },
+                h(Btn, { variant:'secondary', onClick:testRule }, lang==='en' ? 'Test' : 'تجربة'),
+                h(Btn, { variant:'secondary', onClick:remove }, lang==='en' ? 'Remove' : 'حذف')
+              )
             ),
             (sound === 'custom') && h('div', { style:{ marginTop:10 } },
               h(Input, { label:(lang==='en'?'Custom sound URL':'رابط الصوت المخصص'), value:soundUrl, onChange:function(v){ patch('sound_url', v||''); } })
