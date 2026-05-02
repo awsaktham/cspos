@@ -11335,9 +11335,10 @@ function SettingsView(props) {
     setSaving(true);
     var clean = reasons.map(function(r){ return {ar:r.ar||'', en:r.en||'', machine:r.machine||'', step:r.step||''}; });
     var interval = Math.max(3, Math.min(120, parseInt(kdsInterval,10)||8));
-    var rulesClean = asArr(notifRules).map(function(r){
+    var rulesClean = asArr(notifRules).map(function(r, idx){
       var ev = String(r.event||'');
       if (ev === 'custom') ev = String(r.custom_event||'');
+      if (!String(ev||'').trim()) ev = 'custom_' + String((idx||0) + 1);
       return {
         event: ev,
         target_type: String(r.target_type||'department'),
@@ -11804,7 +11805,14 @@ function SettingsView(props) {
 
           return h('div', { key:idx, style:{ padding:12, border:'1px solid '+T.border, borderRadius:T.radiusLg, background:T.bg } },
             h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 } },
-              h(Select, { label:(lang==='en'?'Alert type':'نوع الإشعار'), value:event, onChange:function(v){ patch('event', String(v||'new_order')); }, options: evOpts }),
+              h(Select, { label:(lang==='en'?'Alert type':'نوع الإشعار'), value:event, onChange:function(v){
+                v = String(v||'new_order');
+                patch('event', v);
+                if (v === 'custom') {
+                  var cur = String(r.custom_event || (!isKnownEvent ? rawEvent : '') || '');
+                  if (!cur.trim()) patch('custom_event', 'custom_' + String(idx+1));
+                }
+              }, options: evOpts }),
               h(Select, { label:(lang==='en'?'Target':'الجهة'), value:targetType, onChange:function(v){ patch('target_type', String(v||'department')); }, options: targetOpts }),
               h(Select, { label:(lang==='en'?'Sound':'الصوت'), value:sound, onChange:function(v){ patch('sound', String(v||'')); }, options: soundOpts })
             ),
