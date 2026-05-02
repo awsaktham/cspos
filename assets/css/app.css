@@ -1,0 +1,135 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ColorSource Production Suite — Main Stylesheet
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Reset & Base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+#cspsr-root {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  direction: rtl;
+  color: #1e293b;
+  background: #f8fafc;
+  min-height: 100vh;
+}
+
+/* ── Setup Wizard Animations ────────────────────────────────────────────────── */
+@keyframes spin       { to { transform: rotate(360deg); } }
+@keyframes fadeInUp   { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes bounceIn   {
+  0%   { transform: scale(.3); opacity: 0; }
+  50%  { transform: scale(1.15); }
+  70%  { transform: scale(.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: .6; }
+  50%       { opacity: 1; }
+}
+
+/* Setup card entrance */
+#cspsr-root .setup-card-enter {
+  animation: fadeInUp .5s cubic-bezier(.16,1,.3,1) both;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+#cspsr-root ::-webkit-scrollbar { width: 5px; height: 5px; }
+#cspsr-root ::-webkit-scrollbar-track { background: transparent; }
+#cspsr-root ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+/* ── Sidebar dark theme ─────────────────────────────────────────────────────── */
+#cspsr-root nav {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* ── KDS full-screen ───────────────────────────────────────────────────────── */
+#cspsr-root[data-mode="kds"] {
+  background: #0f172a;
+  color: #fff;
+}
+
+/* ── Print slip ─────────────────────────────────────────────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  .cspsr-slip, .cspsr-slip * { visibility: visible; }
+  .cspsr-slip { position: absolute; top: 0; left: 0; }
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────── */
+.cspsr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cspsr-table th { padding: 10px 12px; background: #f8fafc; text-align: right; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.cspsr-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+.cspsr-table tr:hover td { background: #f8fafc; }
+
+/* ── Setup input hover/focus ────────────────────────────────────────────────── */
+input:focus { outline: none; border-color: rgba(99,102,241,.6) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+#cspsr-root ::-webkit-scrollbar { width: 6px; height: 6px; }
+#cspsr-root ::-webkit-scrollbar-track { background: #f1f5f9; }
+#cspsr-root ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+#cspsr-root ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Spinner animation ─────────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ── KDS full-screen ───────────────────────────────────────────────────────── */
+#cspsr-root[data-mode="kds"] {
+  background: #0f172a;
+  color: #fff;
+}
+
+/* ── Print slip ─────────────────────────────────────────────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  .cspsr-slip, .cspsr-slip * { visibility: visible; }
+  .cspsr-slip { position: absolute; top: 0; left: 0; }
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────── */
+.cspsr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cspsr-table th {
+  padding: 10px 12px;
+  background: #f8fafc;
+  text-align: right;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cspsr-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cspsr-table tr:hover td {
+  background: #f8fafc;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  #cspsr-root > div { flex-direction: column; }
+  nav { width: 100% !important; min-height: auto !important; flex-direction: row !important; overflow-x: auto; }
+}
+
+/* ── Utility ────────────────────────────────────────────────────────────────── */
+.cspsr-flex { display: flex; }
+.cspsr-gap-8 { gap: 8px; }
+.cspsr-mt-8 { margin-top: 8px; }
+.cspsr-text-sm { font-size: 12px; }
+.cspsr-text-muted { color: #94a3b8; }

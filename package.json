@@ -1,0 +1,18 @@
+{
+  "name": "colorsource-production-suite-clean",
+  "version": "6.0.2",
+  "description": "ColorSource Production Suite Clean frontend build tooling",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch"
+  },
+  "keywords": [
+    "wordpress",
+    "plugin",
+    "react",
+    "production",
+    "management"
+  ],
+  "author": "ColorSource",
+  "license": "GPL-2.0"
+}
